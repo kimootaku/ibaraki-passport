@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>茨城県 44市町村 塗りつぶし＆スタンプマップ（高精度版）</title>
+  <!-- Leaflet.js -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Segoe UI", Roboto, sans-serif;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #f1f5f9;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* 操作・進捗パネル */
+    .dashboard-panel {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 12px 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      border: 1px solid #cbd5e1;
+      min-width: 280px;
+      max-width: calc(100vw - 28px);
+    }
+
+    .title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+
+    .stats {
+      font-size: 13px;
+      color: #475569;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .stats-count {
+      font-size: 16px;
+      font-weight: 800;
+      color: #2563eb;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 7px;
+      background: #e2e8f0;
+      border-radius: 99px;
+      overflow: hidden;
+      margin: 6px 0 10px 0;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: #2563eb;
+      transition: width 0.3s ease;
+    }
+
+    .controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toggle-pins-label {
+      font-size: 12px;
+      color: #334155;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+
+    .btn-reset {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: #fee2e2;
+      border: 1px solid #fca5a5;
+      color: #ef4444;
+      cursor: pointer;
+    }
+
+    /* ピンマーカー（下端先端が目標地点を正確に指すデザイン） */
+    .pin-container {
+      position: relative;
+      width: 28px;
+      height: 34px;
+      cursor: pointer;
+    }
+
+    .pin-body {
+      width: 28px;
+      height: 28px;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      background: #ef4444;
+      border: 2px solid #ffffff;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .pin-body span {
+      transform: rotate(45deg);
+      font-size: 11px;
+      font-weight: bold;
+      color: #ffffff;
+    }
+
+    /* 訪問済み（青色）ピン */
+    .pin-container.visited .pin-body {
+      background: #2563eb;
+      border-color: #dbeafe;
+    }
+
+    /* ポップアップ */
+    .popup-content {
+      font-size: 13px;
+      line-height: 1.4;
+      min-width: 200px;
+    }
+
+    .popup-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 2px;
+    }
+
+    .popup-city {
+      font-size: 11px;
+      font-weight: 700;
+      color: #2563eb;
+      margin-bottom: 4px;
+    }
+
+    .popup-addr {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+
+    .popup-btn {
+      width: 100%;
+      padding: 7px;
+      border-radius: 8px;
+      border: none;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      color: #ffffff;
+      margin-bottom: 5px;
+    }
+
+    .popup-btn.btn-visit { background: #2563eb; }
+    .popup-btn.btn-unvisit { background: #64748b; }
+
+    .popup-map-link {
+      display: block;
+      text-align: center;
+      font-size: 11px;
+      color: #2563eb;
+      text-decoration: none;
+      padding-top: 2px;
+    }
+
+    /* 自治体名ツールチップ */
+    .leaflet-tooltip {
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 6px;
+      padding: 3px 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 左上操作・進捗パネル -->
+  <div class="dashboard-panel">
+    <div class="title">茨城 44市町村 訪問チェッカー</div>
+    <div class="stats">
+      <span>達成状況</span>
+      <span class="stats-count"><span id="count">0</span> / 44 自治体 (<span id="pct">0%</span>)</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div id="progress" class="progress-bar-fill"></div>
+    </div>
+    <div class="controls-row">
+      <label class="toggle-pins-label">
+        <input type="checkbox" id="chk-pins" checked onchange="togglePinsVisibility(this.checked)">
+        スタンプのピンを表示
+      </label>
+      <button class="btn-reset" onclick="resetAll()">リセット</button>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+<script>
+  // IBARAKI PASSPORT スタンプ設置場所（公式住所に基づく高精度座標データ）
+  const stampSpots = [
+    // 県央エリア (9市町村・15か所)
+    { name: "偕楽園（東門料金所）", city: "水戸市", address: "水戸市常磐町1丁目3-3", lat: 36.37480, lng: 140.45330 },
+    { name: "弘道館 料金所", city: "水戸市", address: "水戸市三の丸1-6-29", lat: 36.37520, lng: 140.47640 },
+    { name: "茨城県立歴史館", city: "水戸市", address: "水戸市緑町2-1-15", lat: 36.37800, lng: 140.44680 },
+    { name: "茨城県近代美術館", city: "水戸市", address: "水戸市千波町東久保666-1", lat: 36.36210, lng: 140.46320 },
+    { name: "道の駅かさま", city: "笠間市", address: "笠間市手越22-1", lat: 36.36880, lng: 140.29880 },
+    { name: "茨城県陶芸美術館", city: "笠間市", address: "笠間市笠間2345", lat: 36.36620, lng: 140.27430 },
+    { name: "ほしいも神社", city: "ひたちなか市", address: "ひたちなか市阿字ヶ浦町172-2", lat: 36.37680, lng: 140.60460 },
+    { name: "那珂市曲がり屋", city: "那珂市", address: "那珂市菅谷4520-1", lat: 36.45890, lng: 140.49080 },
+    { name: "THE BOTANICAL RESORT 林音", city: "那珂市", address: "那珂市戸4369-1", lat: 36.49500, lng: 140.45780 },
+    { name: "空の駅そ・ら・ら", city: "小美玉市", address: "小美玉市山野1628-44", lat: 36.17700, lng: 140.38000 },
+    { name: "涸沼自然公園", city: "茨城町", address: "東茨城郡茨城町中石崎2263", lat: 36.28440, lng: 140.48500 },
+    { name: "うみまちテラス", city: "大洗町", address: "東茨城郡大洗町桜道301", lat: 36.31340, lng: 140.57440 },
+    { name: "アクアワールド茨城県大洗水族館", city: "大洗町", address: "東茨城郡大洗町磯浜町8252-3", lat: 36.34000, lng: 140.59000 },
+    { name: "道の駅 かつら", city: "城里町", address: "東茨城郡城里町御前山50-10", lat: 36.54485, lng: 140.33305 },
+    { name: "東海村産業・情報プラザ「アイヴィル」", city: "東海村", address: "那珂郡東海村舟石川駅東3-1-1", lat: 36.46780, lng: 140.56580 },
+
+    // 県北エリア (6市町村・12か所)
+    { name: "日立駅情報交流プラザ（ぷらっとひたち）", city: "日立市", address: "日立市幸町1-1-24", lat: 36.59170, lng: 140.66200 },
+    { name: "道の駅日立おさかなセンター", city: "日立市", address: "日立市みなと町5779-24", lat: 36.49500, lng: 140.62200 },
+    { name: "道の駅ひたちおおた～黄門の郷～", city: "常陸太田市", address: "常陸太田市下河合町1016-1", lat: 36.50500, lng: 140.52830 },
+    { name: "道の駅さとみ", city: "常陸太田市", address: "常陸太田市小菅町694", lat: 36.65000, lng: 140.56000 },
+    { name: "竜神大吊橋", city: "常陸太田市", address: "常陸太田市天下野町2133-6", lat: 36.68404, lng: 140.46567 },
+    { name: "高萩観光案内所 メモリア", city: "高萩市", address: "高萩市春日町3-10-16", lat: 36.71450, lng: 140.71400 },
+    { name: "北茨城観光案内所", city: "北茨城市", address: "北茨城市磯原町磯原755-1", lat: 36.79700, lng: 140.74800 },
+    { name: "茨城県天心記念五浦美術館", city: "北茨城市", address: "北茨城市大津町椿2083", lat: 36.83330, lng: 140.79500 },
+    { name: "道の駅常陸大宮～かわプラザ～", city: "常陸大宮市", address: "常陸大宮市岩崎717-1", lat: 36.56500, lng: 140.38000 },
+    { name: "みわ★ふるさと館 北斗星", city: "常陸大宮市", address: "常陸大宮市鷲子272", lat: 36.62000, lng: 140.25000 },
+    { name: "大子町観光協会", city: "大子町", address: "久慈郡大子町大子722-1", lat: 36.77000, lng: 140.35400 },
+    { name: "袋田の滝", city: "大子町", address: "久慈郡大子町袋田3-19", lat: 36.76000, lng: 140.40600 },
+
+    // 鹿行エリア (5市町村・6か所)
+    { name: "鹿嶋市観光案内所", city: "鹿嶋市", address: "鹿嶋市宮下4-1-2", lat: 35.96670, lng: 140.64440 },
+    { name: "カシマサッカーミュージアム", city: "鹿嶋市", address: "鹿嶋市神向寺後山26-2", lat: 35.99170, lng: 140.64000 },
+    { name: "道の駅いたこ", city: "潮来市", address: "潮来市前川1326-1", lat: 35.93330, lng: 140.55000 },
+    { name: "息栖にぎわいテラス", city: "神栖市", address: "神栖市息栖2509", lat: 35.89000, lng: 140.66000 },
+    { name: "行方市観光物産館こいこい", city: "行方市", address: "行方市玉造甲1963-5", lat: 36.07000, lng: 140.45000 },
+    { name: "鹿島灘海浜公園（もぎたて市場）", city: "鉾田市", address: "鉾田市大竹390", lat: 36.16000, lng: 140.56000 },
+
+    // 県南エリア (14市町村・15か所)
+    { name: "土浦まちかど蔵「大徳」", city: "土浦市", address: "土浦市中央1-3-16", lat: 36.08200, lng: 140.20100 },
+    { name: "石岡市観光案内所", city: "石岡市", address: "石岡市国府1-1-17", lat: 36.19000, lng: 140.28500 },
+    { name: "いばらきフラワーパーク", city: "石岡市", address: "石岡市下青柳200", lat: 36.21670, lng: 140.19800 },
+    { name: "アドベンチャーバレー龍ケ崎", city: "龍ケ崎市", address: "龍ケ崎市泉町1966", lat: 35.93880, lng: 140.20780 },
+    { name: "取手市役所 取手駅前窓口", city: "取手市", address: "取手市新町1-9-1", lat: 35.89631, lng: 140.06216 },
+    { name: "牛久シャトー", city: "牛久市", address: "牛久市中央3-20-1", lat: 35.97794, lng: 140.14733 },
+    { name: "つくばジオミュージアム", city: "つくば市", address: "つくば市北条4160", lat: 36.17457, lng: 140.09590 },
+    { name: "もりやコレクション", city: "守谷市", address: "守谷市中央4-9", lat: 35.95060, lng: 139.99220 },
+    { name: "えどさき笑遊館", city: "稲敷市", address: "稲敷市江戸崎甲2711", lat: 35.95962, lng: 140.32040 },
+    { name: "かすみがうら市交流センター コハン", city: "かすみがうら市", address: "かすみがうら市坂4784", lat: 36.07002, lng: 140.37471 },
+    { name: "間宮林蔵記念館", city: "つくばみらい市", address: "つくばみらい市上平柳64", lat: 35.94041, lng: 140.03356 },
+    { name: "みほーすマルシェ", city: "美浦村", address: "稲敷郡美浦村宮地1211-2", lat: 36.00760, lng: 140.30410 },
+    { name: "予科練平和記念館", city: "阿見町", address: "稲敷郡阿見町廻戸5-1", lat: 36.04559, lng: 140.22345 },
+    { name: "かわち夢楽", city: "河内町", address: "稲敷郡河内町長竿4641", lat: 35.87661, lng: 140.29496 },
+    { name: "柳田國男記念公苑", city: "利根町", address: "北相馬郡利根町布川1787-1", lat: 35.85732, lng: 140.14812 },
+
+    // 県西エリア (10市町村・12か所)
+    { name: "道の駅 まくらがの里こが", city: "古河市", address: "古河市大和田2623", lat: 36.19167, lng: 139.78961 },
+    { name: "結城市観光物産センター", city: "結城市", address: "結城市国府町1-1-1", lat: 36.29910, lng: 139.87560 },
+    { name: "道の駅しもつま", city: "下妻市", address: "下妻市数須140", lat: 36.21631, lng: 139.98681 },
+    { name: "地域交流センター（豊田城）", city: "常総市", address: "常総市新石下2010", lat: 36.11670, lng: 139.99600 },
+    { name: "道の駅常総", city: "常総市", address: "常総市むすびまち1", lat: 36.08372, lng: 139.98538 },
+    { name: "道の駅グランテラス筑西", city: "筑西市", address: "筑西市川澄1850", lat: 36.32281, lng: 139.99382 },
+    { name: "坂東将門の里", city: "坂東市", address: "坂東市長須9621-1", lat: 36.04407, lng: 139.84677 },
+    { name: "茨城県自然博物館", city: "坂東市", address: "坂東市大崎700", lat: 36.00515, lng: 139.91626 },
+    { name: "真壁伝承館", city: "桜川市", address: "桜川市真壁町真壁198", lat: 36.27742, lng: 140.10073 },
+    { name: "八千代グリーンビレッジ憩遊館", city: "八千代町", address: "結城郡八千代町松本592", lat: 36.18340, lng: 139.87127 },
+    { name: "道の駅ごか", city: "五霞町", address: "猿島郡五霞町ごかみらい13-3", lat: 36.09539, lng: 139.75826 },
+    { name: "道の駅さかい", city: "境町", address: "猿島郡境町1341-1", lat: 36.10266, lng: 139.79527 }
+  ];
+
+  const STORAGE_KEY = "ibaraki_polygon_stamp_map";
+  let visitedCities = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"));
+
+  // 地図初期化
+  const map = L.map('map', { zoomSnap: 0.5 }).setView([36.35, 140.35], 9.5);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  let geojsonLayer;
+  const pinMarkers = [];
+  const pinsGroup = L.layerGroup().addTo(map);
+
+  // 自治体ポリゴンスタイル（未訪問＝白、訪問＝青色）
+  function getPolygonStyle(cityName) {
+    const isVisited = visitedCities.has(cityName);
+    return {
+      fillColor: isVisited ? '#2563eb' : '#ffffff',
+      fillOpacity: isVisited ? 0.75 : 0.65,
+      weight: 1.5,
+      color: isVisited ? '#1d4ed8' : '#334155',
+      dashArray: isVisited ? null : '2'
+    };
+  }
+
+  // ピンアイコン生成（訪問済み＝青色）
+  function createPinIcon(isVisited) {
+    return L.divIcon({
+      className: 'custom-pin-marker',
+      html: `
+        <div class="pin-container ${isVisited ? 'visited' : ''}">
+          <div class="pin-body">
+            <span>${isVisited ? '✓' : '●'}</span>
+          </div>
+        </div>
+      `,
+      iconSize: [28, 34],
+      iconAnchor: [14, 34], // ピンの尖った下端を中心にする
+      popupAnchor: [0, -32]
+    });
+  }
+
+  // ポップアップHTML
+  function createPopupHtml(spot) {
+    const isVisited = visitedCities.has(spot.city);
+    const navUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot.name + ' ' + spot.address)}`;
+    return `
+      <div class="popup-content">
+        <div class="popup-title">${spot.name}</div>
+        <div class="popup-city">管轄: ${spot.city}</div>
+        <div class="popup-addr">${spot.address}</div>
+        <button class="popup-btn ${isVisited ? 'btn-unvisit' : 'btn-visit'}" onclick="toggleCity('${spot.city}')">
+          ${isVisited ? '未訪問に戻す (白へ)' : '訪問済みにする (青へ)'}
+        </button>
+        <a class="popup-map-link" href="${navUrl}" target="_blank">Googleマップでナビを開く ↗</a>
+      </div>
+    `;
+  }
+
+  // 自治体訪問トグル
+  window.toggleCity = function(cityName) {
+    if (visitedCities.has(cityName)) {
+      visitedCities.delete(cityName);
+    } else {
+      visitedCities.add(cityName);
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...visitedCities]));
+
+    // ポリゴンの色更新
+    if (geojsonLayer) {
+      geojsonLayer.eachLayer(layer => {
+        const name = layer.feature.properties.N03_004;
+        if (name === cityName) {
+          layer.setStyle(getPolygonStyle(cityName));
+        }
+      });
+    }
+
+    // ピン更新
+    pinMarkers.forEach(({ spot, marker }) => {
+      if (spot.city === cityName) {
+        const isVisited = visitedCities.has(cityName);
+        marker.setIcon(createPinIcon(isVisited));
+        marker.setPopupContent(createPopupHtml(spot));
+      }
+    });
+
+    updateStats();
+  };
+
+  function updateStats() {
+    const total = 44;
+    const count = visitedCities.size;
+    const pct = Math.round((count / total) * 100);
+    document.getElementById('count').textContent = count;
+    document.getElementById('pct').textContent = `${pct}%`;
+    document.getElementById('progress').style.width = `${pct}%`;
+  }
+
+  // ピン配置
+  stampSpots.forEach(spot => {
+    const isVisited = visitedCities.has(spot.city);
+    const marker = L.marker([spot.lat, spot.lng], {
+      icon: createPinIcon(isVisited)
+    });
+
+    marker.bindPopup(createPopupHtml(spot));
+    pinsGroup.addLayer(marker);
+    pinMarkers.push({ spot, marker });
+  });
+
+  // ピン表示切り替え
+  window.togglePinsVisibility = function(show) {
+    if (show) {
+      map.addLayer(pinsGroup);
+    } else {
+      map.removeLayer(pinsGroup);
+    }
+  };
+
+  // 茨城県（08）のGeoJSON取得と描画
+  const GEOJSON_URL = "https://raw.githubusercontent.com/smartnews-smri/japan-topography/main/data/municipality/geojson/s0010/N03-21_08_210101.json";
+
+  fetch(GEOJSON_URL)
+    .then(res => res.json())
+    .then(data => {
+      geojsonLayer = L.geoJSON(data, {
+        style: feature => getPolygonStyle(feature.properties.N03_004),
+        onEachFeature: (feature, layer) => {
+          const cityName = feature.properties.N03_004;
+          layer.bindTooltip(cityName, { sticky: true });
+
+          layer.on({
+            click: () => toggleCity(cityName),
+            mouseover: e => {
+              e.target.setStyle({ weight: 3, color: '#0f172a' });
+            },
+            mouseout: e => {
+              geojsonLayer.resetStyle(e.target);
+              e.target.setStyle(getPolygonStyle(cityName));
+            }
+          });
+        }
+      }).addTo(map);
+
+      map.fitBounds(geojsonLayer.getBounds(), { padding: [15, 15] });
+      updateStats();
+    })
+    .catch(err => {
+      console.error(err);
+      alert("境界データの読み込みに失敗しました。インターネット接続をご確認ください。");
+    });
+
+  // リセット
+  window.resetAll = function() {
+    if (confirm("訪問記録をすべてリセットしてもよろしいですか？")) {
+      visitedCities.clear();
+      localStorage.removeItem(STORAGE_KEY);
+
+      if (geojsonLayer) {
+        geojsonLayer.eachLayer(layer => {
+          const name = layer.feature.properties.N03_004;
+          layer.setStyle(getPolygonStyle(name));
+        });
+      }
+
+      pinMarkers.forEach(({ spot, marker }) => {
+        marker.setIcon(createPinIcon(false));
+        marker.setPopupContent(createPopupHtml(spot));
+      });
+
+      updateStats();
+    }
+  };
+</script>
+</body>
+</html>
