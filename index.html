@@ -245,17 +245,17 @@
     { name: "涸沼自然公園", city: "茨城町", address: "東茨城郡茨城町中石崎2263", lat: 36.28866, lng: 140.50203 },
     { name: "うみまちテラス", city: "大洗町", address: "東茨城郡大洗町桜道301", lat: 36.31507, lng: 140.56283 },
     { name: "アクアワールド茨城県大洗水族館", city: "大洗町", address: "東茨城郡大洗町磯浜町8252-3", lat: 36.33274, lng: 140.59409 },
-    { name: "道の駅 かつら", city: "城里町", address: "東茨城郡城里町御前山50-10", lat: 36.54492, lng: 140.33306 },
+    { name: "道の駅 かつら", city: "城里町", address: "東茨城郡城里町御前山37", lat: 36.54492, lng: 140.33306 },
     { name: "東海村産業・情報プラザ「アイヴィル」", city: "東海村", address: "那珂郡東海村舟石川駅東3-1-1", lat: 36.46736, lng: 140.56580 },
 
     // 県北エリア (6市町村・12か所)
-    { name: "日立駅情報交流プラザ（ぷらっとひたち）", city: "日立市", address: "日立市幸町1-1-24", lat: 36.59186, lng: 140.66173 },
+    { name: "日立駅情報交流プラザ（ぷらっとひたち）", city: "日立市", address: "日立市幸町1-1-3", lat: 36.59186, lng: 140.66173 },
     { name: "道の駅日立おさかなセンター", city: "日立市", address: "日立市みなと町5779-24", lat: 36.49233, lng: 140.61543 },
     { name: "道の駅ひたちおおた～黄門の郷～", city: "常陸太田市", address: "常陸太田市下河合町1016-1", lat: 36.51068, lng: 140.52539 },
-    { name: "道の駅さとみ", city: "常陸太田市", address: "常陸太田市小菅町694", lat: 36.70587, lng: 140.50964 },
+    { name: "道の駅さとみ", city: "常陸太田市", address: "常陸太田市小菅町694-3", lat: 36.70587, lng: 140.50964 },
     { name: "竜神大吊橋", city: "常陸太田市", address: "常陸太田市天下野町2133-6", lat: 36.68404, lng: 140.46567 },
     { name: "高萩観光案内所 メモリア", city: "高萩市", address: "高萩市春日町3-10-16", lat: 36.71872, lng: 140.71683 },
-    { name: "北茨城観光案内所", city: "北茨城市", address: "北茨城市磯原町磯原755-1", lat: 36.79030, lng: 140.74850 },
+    { name: "北茨城観光案内所", city: "北茨城市", address: "北茨城市磯原町磯原1630", lat: 36.79030, lng: 140.74850 },
     { name: "茨城県天心記念五浦美術館", city: "北茨城市", address: "北茨城市大津町椿2083", lat: 36.83952, lng: 140.79944 },
     { name: "道の駅常陸大宮～かわプラザ～", city: "常陸大宮市", address: "常陸大宮市岩崎717-1", lat: 36.59702, lng: 140.41022 },
     { name: "みわ★ふるさと館 北斗星", city: "常陸大宮市", address: "常陸大宮市鷲子272", lat: 36.65585, lng: 140.28030 },
@@ -282,7 +282,7 @@
     { name: "えどさき笑遊館", city: "稲敷市", address: "稲敷市江戸崎甲2711", lat: 35.95962, lng: 140.32040 },
     { name: "かすみがうら市交流センター コハン", city: "かすみがうら市", address: "かすみがうら市坂4784", lat: 36.07002, lng: 140.37471 },
     { name: "間宮林蔵記念館", city: "つくばみらい市", address: "つくばみらい市上平柳64", lat: 35.94041, lng: 140.03356 },
-    { name: "みほーすマルシェ", city: "美浦村", address: "稲敷郡美浦村宮地1211-2", lat: 36.01520, 140.30150 },
+    { name: "みほーすマルシェ", city: "美浦村", address: "稲敷郡美浦村宮地1211-2", lat: 36.01520, lng: 140.30150 },
     { name: "予科練平和記念館", city: "阿見町", address: "稲敷郡阿見町廻戸5-1", lat: 36.04559, lng: 140.22345 },
     { name: "かわち夢楽", city: "河内町", address: "稲敷郡河内町長竿4641", lat: 35.87661, lng: 140.29496 },
     { name: "柳田國男記念公苑", city: "利根町", address: "利根町布川1787-1", lat: 35.85732, lng: 140.14812 },
@@ -428,7 +428,10 @@
   const GEOJSON_URL = "https://raw.githubusercontent.com/smartnews-smri/japan-topography/main/data/municipality/geojson/s0010/N03-21_08_210101.json";
 
   fetch(GEOJSON_URL)
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    })
     .then(data => {
       geojsonLayer = L.geoJSON(data, {
         style: feature => getPolygonStyle(feature.properties.N03_004),
@@ -453,8 +456,7 @@
       updateStats();
     })
     .catch(err => {
-      console.error(err);
-      alert("境界データの読み込みに失敗しました。インターネット接続をご確認ください。");
+      console.error("境界データの取得に失敗しました:", err);
     });
 
   // リセット
